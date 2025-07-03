@@ -54,13 +54,17 @@
      const angle = calculateAngle(lm[14], lm[12], lm[24]); // 右肩・右肘・右腰
       let scoreText = `右脇の角度: ${angle.toFixed(1)}度`;
 
-      if (angle < 60 || angle > 100) {
-        scoreText += "（✗ 開きすぎ／閉じすぎ）";
-      } else {
-        scoreText += "（◎ 理想的）";
-      }
+if (angle < 15 || angle > 40) {
+  scoreText += "（✗ 姿勢に無理があるかも）";
+} else if (angle >= 15 && angle < 25) {
+  scoreText += "（◎ リストエイマー寄り）";
+} else if (angle >= 25 && angle <= 35) {
+  scoreText += "（◎ バランス型／プロレベル）";
+} else {
+  scoreText += "（◎ アームエイマー寄り）";
+}
 
-      scoreBox.innerText = scoreText;
+scoreBox.innerText = scoreText;
     });
 
     function calculateAngle(a, b, c) {
