@@ -51,7 +51,7 @@
       const lm = results.poseLandmarks;
       if (!lm) return;
 
-      const angle = calculateAngle(lm[12], lm[14], lm[24]); // 右肩・右肘・右腰
+     const angle = calculateAngle(lm[14], lm[12], lm[24]); // 右肩・右肘・右腰
       let scoreText = `右脇の角度: ${angle.toFixed(1)}度`;
 
       if (angle < 60 || angle > 100) {
