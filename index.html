@@ -2,10 +2,87 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>FPS姿勢チェック（仮）</title>
+  <title>FPS姿勢チェック（カメラ映像）</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
+    #wrapper { position: relative; width: 640px; margin: 20px auto; }
+    video, canvas { width: 640px; height: 480px; }
+    #scoreBox { background: white; padding: 10px; margin-top: 20px; font-size: 1.2em; border-radius: 8px; display: inline-block; }
+  </style>
 </head>
 <body>
-  <h1>FPS姿勢チェックツール（準備中）</h1>
-  <p>このページはあなたの姿勢を測定するWebツールのベースです。</p>
+  <h1>FPS姿勢チェックツール</h1>
+  <p>あなたの脇の角度と肩の高さをリアルタイムでチェックします</p>
+  <div id="wrapper">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="scoreBox">スコア測定中...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const scoreBox = document.getElementById('scoreBox');
+
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      await new Promise(resolve => video.onloadedmetadata = resolve);
+      video.play();
+    }
+
+    function calculateAngle(a, b, c) {
+      const ab = { x: b.x - a.x, y: b.y - a.y };
+      const cb = { x: b.x - c.x, y: b.y - c.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const abLen = Math.hypot(ab.x, ab.y);
+      const cbLen = Math.hypot(cb.x, cb.y);
+      const angle = Math.acos(dot / (abLen * cbLen));
+      return angle * (180 / Math.PI);
+    }
+
+    const pose = new Pose.Pose({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    });
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    pose.onResults(results => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+      const lm = results.poseLandmarks;
+      if (!lm) return;
+
+      // 右肩・右肘・右腰を使って脇の角度を計算
+      const angle = calculateAngle(lm[12], lm[14], lm[24]);
+      let scoreText = `脇の角度: ${angle.toFixed(1)}度`;
+
+      // 評価スコアを表示
+      if (angle < 40 || angle > 110) {
+        scoreText += '（✗ 開きすぎor閉じすぎ）';
+      } else {
+        scoreText += '（◎ 理想的）';
+      }
+      scoreBox.innerText = scoreText;
+    });
+
+    setupCamera().then(() => {
+      const camera = new Camera(video, {
+        onFrame: async () => await pose.send({ image: video }),
+        width: 640,
+        height: 480
+      });
+      camera.start();
+    });
+  </script>
 </body>
 </html>
