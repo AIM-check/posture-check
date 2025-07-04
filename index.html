@@ -6,13 +6,13 @@
   <style>
     body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
     #wrapper { position: relative; width: 640px; margin: 20px auto; }
-    video, canvas { width: 640px; height: 480px; border-radius: 8px; }
-    #scoreBox { margin-top: 20px; padding: 10px; background: white; display: inline-block; font-size: 1.2em; border-radius: 8px; }
+    video, canvas { width: 640px; height: 480px; border-radius: 8px; display: block; }
+    #scoreBox { margin-top: 20px; padding: 10px; background: white; display: inline-block; font-size: 1.2em; border-radius: 8px; white-space: pre-line; }
   </style>
 </head>
 <body>
   <h1>FPS 姿勢チェックツール</h1>
-  <p>カメラで右脇の角度を測定します</p>
+  <p>カメラで右脇の角度・肩すくみ・腕の広がりを測定します</p>
 
   <div id="wrapper">
     <video id="video" autoplay playsinline muted style="display: none;"></video>
@@ -21,7 +21,6 @@
 
   <div id="scoreBox">スコア測定中...</div>
 
-  <!-- ✅ MediaPipe公式バンドルCDN（すべて内包） -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
 
@@ -32,8 +31,7 @@
     const scoreBox = document.getElementById("scoreBox");
 
     const pose = new Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
 
     pose.setOptions({
@@ -51,25 +49,49 @@
       const lm = results.poseLandmarks;
       if (!lm) return;
 
-     const angle = calculateAngle(lm[14], lm[12], lm[24]); // 右肩・右肘・右腰
-      let scoreText = `右脇の角度: ${angle.toFixed(1)}度`;
+      let output = "";
 
-if (angle < 15 || angle > 40) {
-  scoreText += "（✗ 姿勢に無理があるかも）";
-} else if (angle >= 15 && angle < 25) {
-  scoreText += "（◎ リストエイマー寄り）";
-} else if (angle >= 25 && angle <= 35) {
-  scoreText += "（◎ バランス型／プロレベル）";
-} else {
-  scoreText += "（◎ アームエイマー寄り）";
-}
+      // 右脇角度（肘-肩-腰）
+      const rightAngle = calculateAngle(lm[14], lm[12], lm[24]);
+      output += `右脇の角度: ${rightAngle.toFixed(1)}度`;
+      if (rightAngle < 15 || rightAngle > 40) {
+        output += "（✗ 姿勢に無理があるかも）\n";
+      } else if (rightAngle >= 15 && rightAngle < 25) {
+        output += "（◎ リストエイマー寄り）\n";
+      } else if (rightAngle >= 25 && rightAngle <= 35) {
+        output += "（◎ バランス型／プロレベル）\n";
+      } else {
+        output += "（◎ アームエイマー寄り）\n";
+      }
 
-scoreBox.innerText = scoreText;
+      // 肩すくみチェック（頭と肩のY差）
+      const headY = lm[0].y * canvas.height;
+      const rightShoulderY = lm[12].y * canvas.height;
+      const rightDiff = rightShoulderY - headY;
+
+      if (rightDiff < 80) {
+        output += `右肩と頭の距離: ${rightDiff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
+      } else {
+        output += `右肩と頭の距離: ${rightDiff.toFixed(1)}px（◎ 肩は自然な位置）\n`;
+      }
+
+      // 両肘の水平距離
+      const elbowDist = Math.abs((lm[14].x - lm[13].x) * canvas.width);
+      output += `両肘の距離: ${elbowDist.toFixed(1)}px`;
+      if (elbowDist < 100) {
+        output += "（✗ 狭すぎかも）";
+      } else if (elbowDist > 500) {
+        output += "（✗ 広すぎかも）";
+      } else {
+        output += "（◎ 適切な腕の広がり）";
+      }
+
+      scoreBox.innerText = output;
     });
 
     function calculateAngle(a, b, c) {
-      const ab = { x: b.x - a.x, y: b.y - a.y };
-      const cb = { x: b.x - c.x, y: b.y - c.y };
+      const ab = { x: a.x - b.x, y: a.y - b.y };
+      const cb = { x: c.x - b.x, y: c.y - b.y };
       const dot = ab.x * cb.x + ab.y * cb.y;
       const abLen = Math.hypot(ab.x, ab.y);
       const cbLen = Math.hypot(cb.x, cb.y);
