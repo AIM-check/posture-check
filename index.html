@@ -12,7 +12,7 @@
 </head>
 <body>
   <h1>FPS 姿勢チェックツール</h1>
-  <p>カメラで右脇の角度・肩すくみ・腕の広がりを測定します</p>
+  <p>カメラで両脇の角度・肩すくみを測定します</p>
 
   <div id="wrapper">
     <video id="video" autoplay playsinline muted style="display: none;"></video>
@@ -63,3 +63,60 @@
       } else {
         output += "（◎ アームエイマー寄り）\n";
       }
+
+      // 左脇角度（肘-肩-腰）
+      const leftAngle = calculateAngle(lm[13], lm[11], lm[23]);
+      output += `左脇の角度: ${leftAngle.toFixed(1)}度`;
+      if (leftAngle < 15 || leftAngle > 40) {
+        output += "（✗ 姿勢に無理があるかも）\n";
+      } else if (leftAngle >= 15 && leftAngle < 25) {
+        output += "（◎ リストエイマー寄り）\n";
+      } else if (leftAngle >= 25 && leftAngle <= 35) {
+        output += "（◎ バランス型／トラッキングに最適）\n";
+      } else {
+        output += "（◎ アームエイマー寄り）\n";
+      }
+
+      // 肩すくみチェック（右目と右肩のY差で判定）
+      const eyeY = lm[2].y * canvas.height;         // 右目
+      const shoulderY = lm[12].y * canvas.height;   // 右肩
+      const diff = shoulderY - eyeY;
+
+      if (diff < 70) {
+        output += `右肩と目の距離: ${diff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
+      } else {
+        output += `右肩と目の距離: ${diff.toFixed(1)}px（◎ 肩は自然な位置）\n`;
+      }
+
+      scoreBox.innerText = output;
+    });
+
+    function calculateAngle(a, b, c) {
+      const ab = { x: a.x - b.x, y: a.y - b.y };
+      const cb = { x: c.x - b.x, y: c.y - b.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const abLen = Math.hypot(ab.x, ab.y);
+      const cbLen = Math.hypot(cb.x, cb.y);
+      const angle = Math.acos(dot / (abLen * cbLen));
+      return angle * (180 / Math.PI);
+    }
+
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      await new Promise((resolve) => (video.onloadedmetadata = resolve));
+      video.play();
+
+      const camera = new Camera(video, {
+        onFrame: async () => await pose.send({ image: video }),
+        width: 640,
+        height: 480,
+      });
+
+      camera.start();
+    }
+
+    setupCamera();
+  </script>
+</body>
+</html>
