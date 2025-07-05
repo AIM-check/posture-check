@@ -59,62 +59,7 @@
       } else if (rightAngle >= 15 && rightAngle < 25) {
         output += "（◎ リストエイマー寄り）\n";
       } else if (rightAngle >= 25 && rightAngle <= 35) {
-        output += "（◎ バランス型／プロレベル）\n";
+        output += "（◎ バランス型／トラッキングに最適）\n";
       } else {
         output += "（◎ アームエイマー寄り）\n";
       }
-
-      // 肩すくみチェック（頭と肩のY差）
-      const headY = lm[0].y * canvas.height;
-      const rightShoulderY = lm[12].y * canvas.height;
-      const rightDiff = rightShoulderY - headY;
-
-      if (rightDiff < 80) {
-        output += `右肩と頭の距離: ${rightDiff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
-      } else {
-        output += `右肩と頭の距離: ${rightDiff.toFixed(1)}px（◎ 肩は自然な位置）\n`;
-      }
-
-      // 両肘の水平距離
-      const elbowDist = Math.abs((lm[14].x - lm[13].x) * canvas.width);
-      output += `両肘の距離: ${elbowDist.toFixed(1)}px`;
-      if (elbowDist < 100) {
-        output += "（✗ 狭すぎかも）";
-      } else if (elbowDist > 500) {
-        output += "（✗ 広すぎかも）";
-      } else {
-        output += "（◎ 適切な腕の広がり）";
-      }
-
-      scoreBox.innerText = output;
-    });
-
-    function calculateAngle(a, b, c) {
-      const ab = { x: a.x - b.x, y: a.y - b.y };
-      const cb = { x: c.x - b.x, y: c.y - b.y };
-      const dot = ab.x * cb.x + ab.y * cb.y;
-      const abLen = Math.hypot(ab.x, ab.y);
-      const cbLen = Math.hypot(cb.x, cb.y);
-      const angle = Math.acos(dot / (abLen * cbLen));
-      return angle * (180 / Math.PI);
-    }
-
-    async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
-      await new Promise((resolve) => (video.onloadedmetadata = resolve));
-      video.play();
-
-      const camera = new Camera(video, {
-        onFrame: async () => await pose.send({ image: video }),
-        width: 640,
-        height: 480,
-      });
-
-      camera.start();
-    }
-
-    setupCamera();
-  </script>
-</body>
-</html>
