@@ -51,6 +51,15 @@
 
       let output = "";
 
+      // === 信頼度チェック: 不安定ならスキップ ===
+      const visibilityThreshold = 0.6;
+      const indicesToCheck = [12, 14, 16, 24]; // 右肩, 右肘, 右手首, 右腰
+      const unstable = indicesToCheck.some(i => lm[i].visibility < visibilityThreshold);
+      if (unstable) {
+        scoreBox.innerText = "⚠️ 関節の検出精度が低いため、角度判定をスキップしています";
+        return;
+      }
+
       // === 33個のランドマークを描画 ===
       for (let i = 0; i < lm.length; i++) {
         const x = lm[i].x * canvas.width;
