@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>FPS姿勢チェック</title>
+  <title>FPS姿勢チェックツール</title>
   <style>
     body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
     #wrapper { position: relative; width: 640px; margin: 20px auto; }
@@ -30,7 +30,6 @@
     const ctx = canvas.getContext("2d");
     const scoreBox = document.getElementById("scoreBox");
 
-    // Pose モデル初期化
     const pose = new Pose({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
@@ -52,7 +51,23 @@
 
       let output = "";
 
-      // === 脇角度（肘-肩-腰の3点で3D角度を算出） ===
+      // === 33個のランドマークを描画 ===
+      for (let i = 0; i < lm.length; i++) {
+        const x = lm[i].x * canvas.width;
+        const y = lm[i].y * canvas.height;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = "red";
+        ctx.fill();
+
+        // 番号を表示
+        ctx.fillStyle = "white";
+        ctx.font = "10px sans-serif";
+        ctx.fillText(i, x + 6, y - 6);
+      }
+
+      // === 脇角度 ===
       const rightArmpitAngle = calculate3DAngle(lm[14], lm[12], lm[24]);
       const leftArmpitAngle = calculate3DAngle(lm[13], lm[11], lm[23]);
 
@@ -66,17 +81,15 @@
       } else {
         output += "（◎ アームエイマー寄り）\n";
       }
-
       output += `左脇の角度: ${leftArmpitAngle.toFixed(1)}°\n`;
 
-      // === 肘の角度（肩-肘-手首の3点で3D角度を算出） ===
+      // === 肘角度 ===
       const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
       const leftElbowAngle = calculate3DAngle(lm[11], lm[13], lm[15]);
-
       output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
       output += `左肘の角度: ${leftElbowAngle.toFixed(1)}°\n`;
 
-      // === 肩すくみチェック（右目と右肩のY座標差） ===
+      // === 肩すくみチェック ===
       const eyeY = lm[2].y * canvas.height;
       const shoulderY = lm[12].y * canvas.height;
       const diff = shoulderY - eyeY;
@@ -90,20 +103,16 @@
       scoreBox.innerText = output;
     });
 
-    // === 任意の3点から3D角度を算出する関数 ===
     function calculate3DAngle(a, b, c) {
       const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
       const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
-
       const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
       const abLen = Math.hypot(ab.x, ab.y, ab.z);
       const cbLen = Math.hypot(cb.x, cb.y, cb.z);
-
       const angle = Math.acos(dot / (abLen * cbLen));
       return angle * (180 / Math.PI);
     }
 
-    // === カメラ設定と開始処理 ===
     async function setupCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -116,11 +125,10 @@
           width: 640,
           height: 480,
         });
-
         camera.start();
       } catch (err) {
         console.error("カメラ取得エラー:", err);
-        alert("カメラの取得に失敗しました: " + err.name + "\nカメラの設定や許可を確認してください。");
+        alert("カメラの取得に失敗しました: " + err.name);
       }
     }
 
