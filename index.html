@@ -35,8 +35,8 @@
     });
 
     pose.setOptions({
-      modelComplexity: 2,              // ★ 高精度モード（0〜2）
-      smoothLandmarks: true,          // 滑らかな動き補正
+      modelComplexity: 2,
+      smoothLandmarks: true,
       enableSegmentation: false,
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
@@ -66,6 +66,19 @@
         ctx.font = "10px sans-serif";
         ctx.fillText(i, x + 6, y - 6);
       }
+
+      // === 可視化ライン: 肩→肘→手首 ===
+      function drawLine(a, b, color = 'lime') {
+        ctx.beginPath();
+        ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
+        ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
+      drawLine(lm[12], lm[14], 'cyan'); // 肩→肘
+      drawLine(lm[14], lm[16], 'cyan'); // 肘→手首
 
       // === 脇角度 ===
       const rightArmpitAngle = calculate3DAngle(lm[14], lm[12], lm[24]);
