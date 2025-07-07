@@ -35,8 +35,8 @@
     });
 
     pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
+      modelComplexity: 2,              // ★ 高精度モード（0〜2）
+      smoothLandmarks: true,          // 滑らかな動き補正
       enableSegmentation: false,
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
