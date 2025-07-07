@@ -67,7 +67,7 @@
         ctx.fillText(i, x + 6, y - 6);
       }
 
-      // === 可視化ライン: 肩→肘→手首 ===
+      // === 可視化ライン ===
       function drawLine(a, b, color = 'lime') {
         ctx.beginPath();
         ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
@@ -79,6 +79,8 @@
 
       drawLine(lm[12], lm[14], 'cyan'); // 肩→肘
       drawLine(lm[14], lm[16], 'cyan'); // 肘→手首
+      drawLine(lm[14], lm[24], 'orange'); // 肘→腰
+      drawLine(lm[24], lm[16], 'orange'); // 腰→手首
 
       // === 脇角度 ===
       const rightArmpitAngle = calculate3DAngle(lm[14], lm[12], lm[24]);
