@@ -5,8 +5,8 @@
   <title>FPS姿勢チェックツール</title>
   <style>
     body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
-    #wrapper { position: relative; width: 640px; margin: 20px auto; }
-    video, canvas { width: 640px; height: 480px; border-radius: 8px; display: block; }
+    #wrapper { position: relative; width: 1280px; margin: 20px auto; }
+    video, canvas { width: 1280px; height: 720px; border-radius: 8px; display: block; }
     #scoreBox { margin-top: 20px; padding: 10px; background: white; display: inline-block; font-size: 1.2em; border-radius: 8px; white-space: pre-line; }
   </style>
 </head>
@@ -115,15 +115,17 @@
 
     async function setupCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720 }
+        });
         video.srcObject = stream;
         await new Promise((resolve) => (video.onloadedmetadata = resolve));
         video.play();
 
         const camera = new Camera(video, {
           onFrame: async () => await pose.send({ image: video }),
-          width: 640,
-          height: 480,
+          width: 1280,
+          height: 720,
         });
         camera.start();
       } catch (err) {
