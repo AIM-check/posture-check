@@ -51,29 +51,68 @@
 
       let output = "";
 
-      // 必須ランドマークのみで判定（腰は除外）
-      const visibilityThreshold = 0.6;
-      const indicesToCheck = [12, 14, 16];
-      const unstable = indicesToCheck.some(i => lm[i].visibility < visibilityThreshold);
-      if (unstable) {
-        scoreBox.innerText = "⚠️ 関節の検出精度が低いため、角度判定をスキップしています";
-        return;
+      // ランドマークの visibility を取得
+      const vis12 = lm[12].visibility;
+      const vis14 = lm[14].visibility;
+      const vis16 = lm[16].visibility;
+
+      // === 右脇の角度（肩と肘が見えていればOK） ===
+      if (vis12 >= 0.6 && vis14 >= 0.6) {
+        const shoulder = lm[12];
+        const elbow = lm[14];
+        const virtualPoint = {
+          x: shoulder.x,
+          y: shoulder.y + 0.2
+        };
+        const rightArmpitAngle2D = calculate2DAngle(elbow, shoulder, virtualPoint);
+
+        output += `右脇の角度（2D）: ${rightArmpitAngle2D.toFixed(1)}°`;
+        if (rightArmpitAngle2D < 15 || rightArmpitAngle2D > 40) {
+          output += "（✗ 開きすぎ or 閉じすぎ）\n";
+        } else if (rightArmpitAngle2D >= 15 && rightArmpitAngle2D < 25) {
+          output += "（◎ リストエイマー寄り）\n";
+        } else if (rightArmpitAngle2D >= 25 && rightArmpitAngle2D <= 35) {
+          output += "（◎ バランス型）\n";
+        } else {
+          output += "（◎ アームエイマー寄り）\n";
+        }
+      } else {
+        output += "⚠️ 右脇角度を判定できません（肩または肘の検出が不十分）\n";
       }
 
+      // === 右肘の角度（肩・肘・手首が見えていればOK） ===
+      if (vis12 >= 0.6 && vis14 >= 0.6 && vis16 >= 0.6) {
+        const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
+        output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
+      } else {
+        output += "⚠️ 右肘角度を判定できません（関節検出が不十分）\n";
+      }
+
+      // === 肩すくみチェック ===
+      const eyeY = lm[2].y * canvas.height;
+      const shoulderY = lm[12].y * canvas.height;
+      const diff = shoulderY - eyeY;
+
+      if (diff < 70) {
+        output += `右肩と目の距離: ${diff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
+      } else {
+        output += `右肩と目の距離: ${diff.toFixed(1)}px（◎ 肩の高さは自然）\n`;
+      }
+
+      // === ランドマーク描画 ===
       for (let i = 0; i < lm.length; i++) {
         const x = lm[i].x * canvas.width;
         const y = lm[i].y * canvas.height;
-
         ctx.beginPath();
         ctx.arc(x, y, 5, 0, 2 * Math.PI);
         ctx.fillStyle = "red";
         ctx.fill();
-
         ctx.fillStyle = "white";
         ctx.font = "10px sans-serif";
         ctx.fillText(i, x + 6, y - 6);
       }
 
+      // === 骨格ライン ===
       function drawLine(a, b, color = 'lime') {
         ctx.beginPath();
         ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
@@ -85,40 +124,6 @@
 
       drawLine(lm[12], lm[14], 'cyan');
       drawLine(lm[14], lm[16], 'cyan');
-
-      // 右脇の角度（2D）: 肩-肘-仮想点
-      const shoulder = lm[12];
-      const elbow = lm[14];
-      const virtualPoint = {
-        x: shoulder.x,
-        y: shoulder.y + 0.2, // 肩の真下方向
-      };
-      const rightArmpitAngle2D = calculate2DAngle(elbow, shoulder, virtualPoint);
-
-      output += `右脇の角度（2D）: ${rightArmpitAngle2D.toFixed(1)}°`;
-      if (rightArmpitAngle2D < 15 || rightArmpitAngle2D > 40) {
-        output += "（✗ 開きすぎ or 閉じすぎ）\n";
-      } else if (rightArmpitAngle2D >= 15 && rightArmpitAngle2D < 25) {
-        output += "（◎ リストエイマー寄り）\n";
-      } else if (rightArmpitAngle2D >= 25 && rightArmpitAngle2D <= 35) {
-        output += "（◎ バランス型）\n";
-      } else {
-        output += "（◎ アームエイマー寄り）\n";
-      }
-
-      // 肘角度は従来の3D方式
-      const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
-      output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
-
-      const eyeY = lm[2].y * canvas.height;
-      const shoulderY = lm[12].y * canvas.height;
-      const diff = shoulderY - eyeY;
-
-      if (diff < 70) {
-        output += `右肩と目の距離: ${diff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
-      } else {
-        output += `右肩と目の距離: ${diff.toFixed(1)}px（◎ 肩の高さは自然）\n`;
-      }
 
       scoreBox.innerText = output;
     });
@@ -145,13 +150,10 @@
 
     async function setupCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 }
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
         video.srcObject = stream;
         await new Promise((resolve) => (video.onloadedmetadata = resolve));
         video.play();
-
         const camera = new Camera(video, {
           onFrame: async () => await pose.send({ image: video }),
           width: 1280,
