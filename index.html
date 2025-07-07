@@ -51,8 +51,9 @@
 
       let output = "";
 
+      // 必須ランドマークのみで判定（腰は除外）
       const visibilityThreshold = 0.6;
-      const indicesToCheck = [12, 14, 16, 24];
+      const indicesToCheck = [12, 14, 16];
       const unstable = indicesToCheck.some(i => lm[i].visibility < visibilityThreshold);
       if (unstable) {
         scoreBox.innerText = "⚠️ 関節の検出精度が低いため、角度判定をスキップしています";
@@ -84,28 +85,30 @@
 
       drawLine(lm[12], lm[14], 'cyan');
       drawLine(lm[14], lm[16], 'cyan');
-      drawLine(lm[14], lm[24], 'orange');
-      drawLine(lm[24], lm[16], 'orange');
 
-      const rightArmpitAngle = calculate3DAngle(lm[14], lm[12], lm[24]);
-      const leftArmpitAngle = calculate3DAngle(lm[13], lm[11], lm[23]);
+      // 右脇の角度（2D）: 肩-肘-仮想点
+      const shoulder = lm[12];
+      const elbow = lm[14];
+      const virtualPoint = {
+        x: shoulder.x,
+        y: shoulder.y + 0.2, // 肩の真下方向
+      };
+      const rightArmpitAngle2D = calculate2DAngle(elbow, shoulder, virtualPoint);
 
-      output += `右脇の角度: ${rightArmpitAngle.toFixed(1)}°`;
-      if (rightArmpitAngle < 15 || rightArmpitAngle > 40) {
+      output += `右脇の角度（2D）: ${rightArmpitAngle2D.toFixed(1)}°`;
+      if (rightArmpitAngle2D < 15 || rightArmpitAngle2D > 40) {
         output += "（✗ 開きすぎ or 閉じすぎ）\n";
-      } else if (rightArmpitAngle >= 15 && rightArmpitAngle < 25) {
+      } else if (rightArmpitAngle2D >= 15 && rightArmpitAngle2D < 25) {
         output += "（◎ リストエイマー寄り）\n";
-      } else if (rightArmpitAngle >= 25 && rightArmpitAngle <= 35) {
+      } else if (rightArmpitAngle2D >= 25 && rightArmpitAngle2D <= 35) {
         output += "（◎ バランス型）\n";
       } else {
         output += "（◎ アームエイマー寄り）\n";
       }
-      output += `左脇の角度: ${leftArmpitAngle.toFixed(1)}°\n`;
 
+      // 肘角度は従来の3D方式
       const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
-      const leftElbowAngle = calculate3DAngle(lm[11], lm[13], lm[15]);
       output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
-      output += `左肘の角度: ${leftElbowAngle.toFixed(1)}°\n`;
 
       const eyeY = lm[2].y * canvas.height;
       const shoulderY = lm[12].y * canvas.height;
@@ -126,6 +129,16 @@
       const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
       const abLen = Math.hypot(ab.x, ab.y, ab.z);
       const cbLen = Math.hypot(cb.x, cb.y, cb.z);
+      const angle = Math.acos(dot / (abLen * cbLen));
+      return angle * (180 / Math.PI);
+    }
+
+    function calculate2DAngle(a, b, c) {
+      const ab = { x: a.x - b.x, y: a.y - b.y };
+      const cb = { x: c.x - b.x, y: c.y - b.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const abLen = Math.hypot(ab.x, ab.y);
+      const cbLen = Math.hypot(cb.x, cb.y);
       const angle = Math.acos(dot / (abLen * cbLen));
       return angle * (180 / Math.PI);
     }
