@@ -51,13 +51,17 @@
 
       let output = "";
 
-      // ランドマークの visibility を取得
-      const vis12 = lm[12].visibility;
-      const vis14 = lm[14].visibility;
-      const vis16 = lm[16].visibility;
+      const vis12 = lm[12]?.visibility;
+      const vis14 = lm[14]?.visibility;
+      const vis16 = lm[16]?.visibility;
 
-      // === 右脇の角度（肩と肘が見えていればOK） ===
-      if (vis12 >= 0.6 && vis14 >= 0.6) {
+      // === 右脇の角度（安全チェック付き） ===
+      if (
+        lm[12] && lm[14] &&
+        typeof vis12 !== 'undefined' &&
+        typeof vis14 !== 'undefined' &&
+        vis12 >= 0.6 && vis14 >= 0.6
+      ) {
         const shoulder = lm[12];
         const elbow = lm[14];
         const virtualPoint = {
@@ -77,15 +81,21 @@
           output += "（◎ アームエイマー寄り）\n";
         }
       } else {
-        output += "⚠️ 右脇角度を判定できません（肩または肘の検出が不十分）\n";
+        output += "⚠️ 脇角度スキップ：ランドマーク未定義またはvisibility不足\n";
       }
 
-      // === 右肘の角度（肩・肘・手首が見えていればOK） ===
-      if (vis12 >= 0.6 && vis14 >= 0.6 && vis16 >= 0.6) {
+      // === 肘の角度 ===
+      if (
+        lm[12] && lm[14] && lm[16] &&
+        typeof vis12 !== 'undefined' &&
+        typeof vis14 !== 'undefined' &&
+        typeof vis16 !== 'undefined' &&
+        vis12 >= 0.6 && vis14 >= 0.6 && vis16 >= 0.6
+      ) {
         const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
         output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
       } else {
-        output += "⚠️ 右肘角度を判定できません（関節検出が不十分）\n";
+        output += "⚠️ 肘角度スキップ：ランドマーク未定義またはvisibility不足\n";
       }
 
       // === 肩すくみチェック ===
