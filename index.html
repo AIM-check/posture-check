@@ -1,182 +1,46 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>FPS姿勢チェックツール</title>
+  <title>Dual Camera Test</title>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
-    #wrapper { position: relative; width: 1280px; margin: 20px auto; }
-    video, canvas { width: 1280px; height: 720px; border-radius: 8px; display: block; }
-    #scoreBox { margin-top: 20px; padding: 10px; background: white; display: inline-block; font-size: 1.2em; border-radius: 8px; white-space: pre-line; }
+    video {
+      width: 45%;
+      margin: 10px;
+      border: 2px solid #333;
+    }
   </style>
 </head>
 <body>
-  <h1>FPS 姿勢チェックツール</h1>
-  <p>カメラで姿勢を測定：脇角度、肘角度、肩すくみをチェックします</p>
-
-  <div id="wrapper">
-    <video id="video" autoplay playsinline muted style="display: none;"></video>
-    <canvas id="canvas"></canvas>
+  <h2>🎥 2カメラ同時表示テスト</h2>
+  <div>
+    <video id="video1" autoplay muted playsinline></video>
+    <video id="video2" autoplay muted playsinline></video>
   </div>
-
-  <div id="scoreBox">スコア測定中...</div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
-
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const scoreBox = document.getElementById("scoreBox");
-
-    const pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
-    });
-
-    pose.setOptions({
-      modelComplexity: 2,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
-    pose.onResults((results) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      const lm = results.poseLandmarks;
-      if (!lm) return;
-
-      let output = "";
-
-      const vis12 = lm[12]?.visibility;
-      const vis14 = lm[14]?.visibility;
-      const vis16 = lm[16]?.visibility;
-
-      // === 右脇の角度（安全チェック付き） ===
-      if (
-        lm[12] && lm[14] &&
-        typeof vis12 !== 'undefined' &&
-        typeof vis14 !== 'undefined' &&
-        vis12 >= 0.6 && vis14 >= 0.6
-      ) {
-        const shoulder = lm[12];
-        const elbow = lm[14];
-        const virtualPoint = {
-          x: shoulder.x,
-          y: shoulder.y + 0.2
-        };
-        const rightArmpitAngle2D = calculate2DAngle(elbow, shoulder, virtualPoint);
-
-        output += `右脇の角度（2D）: ${rightArmpitAngle2D.toFixed(1)}°`;
-        if (rightArmpitAngle2D < 15 || rightArmpitAngle2D > 40) {
-          output += "（✗ 開きすぎ or 閉じすぎ）\n";
-        } else if (rightArmpitAngle2D >= 15 && rightArmpitAngle2D < 25) {
-          output += "（◎ リストエイマー寄り）\n";
-        } else if (rightArmpitAngle2D >= 25 && rightArmpitAngle2D <= 35) {
-          output += "（◎ バランス型）\n";
-        } else {
-          output += "（◎ アームエイマー寄り）\n";
-        }
-      } else {
-        output += "⚠️ 脇角度スキップ：ランドマーク未定義またはvisibility不足\n";
-      }
-
-      // === 肘の角度 ===
-      if (
-        lm[12] && lm[14] && lm[16] &&
-        typeof vis12 !== 'undefined' &&
-        typeof vis14 !== 'undefined' &&
-        typeof vis16 !== 'undefined' &&
-        vis12 >= 0.6 && vis14 >= 0.6 && vis16 >= 0.6
-      ) {
-        const rightElbowAngle = calculate3DAngle(lm[12], lm[14], lm[16]);
-        output += `右肘の角度: ${rightElbowAngle.toFixed(1)}°\n`;
-      } else {
-        output += "⚠️ 肘角度スキップ：ランドマーク未定義またはvisibility不足\n";
-      }
-
-      // === 肩すくみチェック ===
-      const eyeY = lm[2].y * canvas.height;
-      const shoulderY = lm[12].y * canvas.height;
-      const diff = shoulderY - eyeY;
-
-      if (diff < 70) {
-        output += `右肩と目の距離: ${diff.toFixed(1)}px（✗ 肩が上がっているかも）\n`;
-      } else {
-        output += `右肩と目の距離: ${diff.toFixed(1)}px（◎ 肩の高さは自然）\n`;
-      }
-
-      // === ランドマーク描画 ===
-      for (let i = 0; i < lm.length; i++) {
-        const x = lm[i].x * canvas.width;
-        const y = lm[i].y * canvas.height;
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, 2 * Math.PI);
-        ctx.fillStyle = "red";
-        ctx.fill();
-        ctx.fillStyle = "white";
-        ctx.font = "10px sans-serif";
-        ctx.fillText(i, x + 6, y - 6);
-      }
-
-      // === 骨格ライン ===
-      function drawLine(a, b, color = 'lime') {
-        ctx.beginPath();
-        ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
-        ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-
-      drawLine(lm[12], lm[14], 'cyan');
-      drawLine(lm[14], lm[16], 'cyan');
-
-      scoreBox.innerText = output;
-    });
-
-    function calculate3DAngle(a, b, c) {
-      const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-      const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
-      const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
-      const abLen = Math.hypot(ab.x, ab.y, ab.z);
-      const cbLen = Math.hypot(cb.x, cb.y, cb.z);
-      const angle = Math.acos(dot / (abLen * cbLen));
-      return angle * (180 / Math.PI);
+    async function getCameras() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(device => device.kind === 'videoinput');
     }
 
-    function calculate2DAngle(a, b, c) {
-      const ab = { x: a.x - b.x, y: a.y - b.y };
-      const cb = { x: c.x - b.x, y: c.y - b.y };
-      const dot = ab.x * cb.x + ab.y * cb.y;
-      const abLen = Math.hypot(ab.x, ab.y);
-      const cbLen = Math.hypot(cb.x, cb.y);
-      const angle = Math.acos(dot / (abLen * cbLen));
-      return angle * (180 / Math.PI);
-    }
-
-    async function setupCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
-        video.srcObject = stream;
-        await new Promise((resolve) => (video.onloadedmetadata = resolve));
-        video.play();
-        const camera = new Camera(video, {
-          onFrame: async () => await pose.send({ image: video }),
-          width: 1280,
-          height: 720,
-        });
-        camera.start();
-      } catch (err) {
-        console.error("カメラ取得エラー:", err);
-        alert("カメラの取得に失敗しました: " + err.name);
+    async function startDualCamera() {
+      const cameras = await getCameras();
+      if (cameras.length < 2) {
+        alert("⚠️ 2台のカメラが検出されませんでした。最低2台のWebカメラが必要です。");
+        return;
       }
+
+      const stream1 = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: cameras[0].deviceId } }
+      });
+      document.getElementById("video1").srcObject = stream1;
+
+      const stream2 = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: cameras[1].deviceId } }
+      });
+      document.getElementById("video2").srcObject = stream2;
     }
 
-    setupCamera();
+    startDualCamera();
   </script>
 </body>
 </html>
