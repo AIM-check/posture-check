@@ -1,109 +1,67 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>2カメラ + MediaPipe Pose（Tasks API）</title>
-  <style>
-    video, canvas {
-      width: 45%;
-      margin: 10px;
-      border: 1px solid #ccc;
-    }
-    #wrapper {
-      display: flex;
-      flex-wrap: wrap;
-    }
-  </style>
-</head>
+<head><meta charset="UTF-8"><title>2カメラ + Lite版 Model</title></head>
 <body>
-  <h2>2カメラ + MediaPipe Pose（Tasks API）</h2>
-  <div id="wrapper">
-    <video id="video1" autoplay muted playsinline></video>
-    <canvas id="canvas1"></canvas>
-    <video id="video2" autoplay muted playsinline></video>
-    <canvas id="canvas2"></canvas>
-  </div>
+  <video id="video1" autoplay muted playsinline style="width:45%"></video>
+  <canvas id="canvas1" style="width:45%"></canvas>
+  <video id="video2" autoplay muted playsinline style="width:45%"></video>
+  <canvas id="canvas2" style="width:45%"></canvas>
 
   <script type="module">
-    import {
-      FilesetResolver,
-      PoseLandmarker
-    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+    import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     async function setupCamera(videoEl, deviceId) {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const s = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: 640, height: 480 }
       });
-      videoEl.srcObject = stream;
-      return new Promise(resolve => {
-        videoEl.onloadedmetadata = () => {
-          resolve();
-        };
-      });
+      videoEl.srcObject = s;
+      return new Promise(r => videoEl.onloadedmetadata = r);
     }
 
     async function main() {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(d => d.kind === "videoinput");
-      if (cameras.length < 2) {
-        alert("2台のカメラが必要です。");
-        return;
-      }
+      const cams = (await navigator.mediaDevices.enumerateDevices())
+        .filter(d => d.kind === 'videoinput');
+      if (cams.length < 2) { alert('2台必要'); return; }
 
-      const video1 = document.getElementById("video1");
-      const canvas1 = document.getElementById("canvas1");
-      const ctx1 = canvas1.getContext("2d");
+      const [v1, v2] = [document.getElementById('video1'), document.getElementById('video2')];
+      const [c1, c2] = [document.getElementById('canvas1'), document.getElementById('canvas2')];
+      const [ctx1, ctx2] = [c1.getContext('2d'), c2.getContext('2d')];
 
-      const video2 = document.getElementById("video2");
-      const canvas2 = document.getElementById("canvas2");
-      const ctx2 = canvas2.getContext("2d");
-
-      await Promise.all([
-        setupCamera(video1, cameras[0].deviceId),
-        setupCamera(video2, cameras[1].deviceId)
-      ]);
-
-      canvas1.width = video1.videoWidth;
-      canvas1.height = video1.videoHeight;
-      canvas2.width = video2.videoWidth;
-      canvas2.height = video2.videoHeight;
+      await Promise.all([setupCamera(v1, cams[0].deviceId), setupCamera(v2, cams[1].deviceId)]);
+      [c1.width, c1.height] = [v1.videoWidth, v1.videoHeight];
+      [c2.width, c2.height] = [v2.videoWidth, v2.videoHeight];
 
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
       );
-
       const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/1/pose_landmarker_full.task"
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/1/pose_landmarker_lite.task"
         },
         runningMode: "VIDEO",
         numPoses: 1
       });
 
-      function drawLandmarks(ctx, landmarks, color = "red") {
-        for (const lm of landmarks) {
-          ctx.beginPath();
-          ctx.arc(lm.x * ctx.canvas.width, lm.y * ctx.canvas.height, 5, 0, 2 * Math.PI);
-          ctx.fillStyle = color;
-          ctx.fill();
-        }
-      }
-
-      async function renderLoop(video, canvas, ctx, color) {
-        if (video.readyState === 4) {
-          const result = await poseLandmarker.detectForVideo(video, performance.now());
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          if (result.landmarks.length > 0) {
-            drawLandmarks(ctx, result.landmarks[0], color);
+      const render = async (v, c, ctx, color) => {
+        if (v.readyState === 4) {
+          const res = await poseLandmarker.detectForVideo(v, performance.now());
+          ctx.clearRect(0, 0, c.width, c.height);
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          if (res.landmarks.length) {
+            res.landmarks[0].forEach(lm => {
+              ctx.beginPath();
+              ctx.arc(lm.x * c.width, lm.y * c.height, 5, 0, Math.PI*2);
+              ctx.fillStyle = color;
+              ctx.fill();
+            });
           }
         }
-        requestAnimationFrame(() => renderLoop(video, canvas, ctx, color));
-      }
+        requestAnimationFrame(() => render(v, c, ctx, color));
+      };
 
-      renderLoop(video1, canvas1, ctx1, "red");
-      renderLoop(video2, canvas2, ctx2, "blue");
+      render(v1, c1, ctx1, 'red');
+      render(v2, c2, ctx2, 'blue');
     }
 
     main();
