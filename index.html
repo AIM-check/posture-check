@@ -46,37 +46,13 @@
       video1.srcObject = stream1;
       video2.srcObject = stream2;
 
-      const pose1 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
-      const pose2 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+      video1.onloadedmetadata = () => {
+        canvas1.width = video1.videoWidth;
+        canvas1.height = video1.videoHeight;
+      };
+      video2.onloadedmetadata = () => {
+        canvas2.width = video2.videoWidth;
+        canvas2.height = video2.videoHeight;
+      };
 
-      pose1.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-      pose2.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-
-      pose1.onResults(results => {
-        ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
-        ctx1.drawImage(results.image, 0, 0, canvas1.width, canvas1.height);
-        if (results.poseLandmarks) {
-          drawConnectors(ctx1, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#00FF00'});
-          drawLandmarks(ctx1, results.poseLandmarks, {color: '#FF0000', radius: 2});
-        }
-      });
-
-      pose2.onResults(results => {
-        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
-        ctx2.drawImage(results.image, 0, 0, canvas2.width, canvas2.height);
-        if (results.poseLandmarks) {
-          drawConnectors(ctx2, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#0000FF'});
-          drawLandmarks(ctx2, results.poseLandmarks, {color: '#FFFF00', radius: 2});
-        }
-      });
-
-      const camera1 = new Camera(video1, {onFrame: async () => await pose1.send({image: video1}), width: 640, height: 480});
-      const camera2 = new Camera(video2, {onFrame: async () => await pose2.send({image: video2}), width: 640, height: 480});
-      camera1.start();
-      camera2.start();
-    }
-
-    startDualCamera();
-  </script>
-</body>
-</html>
+      const pose1 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose
