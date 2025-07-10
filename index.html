@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dual Camera with MediaPipe</title>
+  <title>2カメラ + MediaPipe Pose</title>
   <style>
     video, canvas {
       width: 45%;
@@ -9,18 +9,20 @@
       border: 1px solid #ccc;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
+  <!-- MediaPipe ライブラリの読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 </head>
 <body>
-  <h2>🎥 2カメラ + MediaPipe Pose 可視化</h2>
+  <h2>🎥 2カメラ + MediaPipe Pose 表示</h2>
   <div>
     <video id="video1" autoplay muted playsinline></video>
     <canvas id="canvas1"></canvas>
     <video id="video2" autoplay muted playsinline></video>
     <canvas id="canvas2"></canvas>
   </div>
+
   <script>
     async function getCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -41,8 +43,8 @@
       const ctx1 = canvas1.getContext('2d');
       const ctx2 = canvas2.getContext('2d');
 
-      const stream1 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[0].deviceId } } });
-      const stream2 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[1].deviceId } } });
+      const stream1 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[0].deviceId }, width: 640, height: 480 } });
+      const stream2 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[1].deviceId }, width: 640, height: 480 } });
       video1.srcObject = stream1;
       video2.srcObject = stream2;
 
@@ -55,18 +57,22 @@
         canvas2.height = video2.videoHeight;
       };
 
-      const pose1 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
-      const pose2 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+      const pose1 = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      });
+      const pose2 = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      });
 
-      pose1.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-      pose2.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      pose1.setOptions({ modelComplexity: 2, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      pose2.setOptions({ modelComplexity: 2, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
       pose1.onResults(results => {
         if (!results.poseLandmarks) return;
         ctx1.save();
         ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
         ctx1.drawImage(results.image, 0, 0, canvas1.width, canvas1.height);
-        drawConnectors(ctx1, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+        drawConnectors(ctx1, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
         drawLandmarks(ctx1, results.poseLandmarks, {color: '#FF0000', radius: 2});
         ctx1.restore();
       });
@@ -76,7 +82,7 @@
         ctx2.save();
         ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
         ctx2.drawImage(results.image, 0, 0, canvas2.width, canvas2.height);
-        drawConnectors(ctx2, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#0000FF', lineWidth: 2});
+        drawConnectors(ctx2, results.poseLandmarks, POSE_CONNECTIONS, {color: '#0000FF', lineWidth: 2});
         drawLandmarks(ctx2, results.poseLandmarks, {color: '#FFFF00', radius: 2});
         ctx2.restore();
       });
