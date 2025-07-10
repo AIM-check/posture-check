@@ -1,78 +1,58 @@
 <!DOCTYPE html>
 <html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <title>右脇角度チェック</title>
-    <!-- 必要な Mediapipe ライブラリを script タグで読み込む -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <style>
-      canvas { border: 1px solid #ccc; }
-    </style>
-  </head>
-  <body>
-    <video class="input_video" style="display:none;"></video>
-    <canvas class="output_canvas" width="640" height="480"></canvas>
+<head>
+  <meta charset="UTF-8">
+  <title>1カメラ Mediapipe Pose チェック</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <style>
+    video, canvas { width: 640px; height: 480px; }
+  </style>
+</head>
+<body>
+  <video id="inputVideo" autoplay muted playsinline></video>
+  <canvas id="outputCanvas"></canvas>
 
-    <script>
-      const videoElement = document.querySelector('.input_video');
-      const canvasElement = document.querySelector('.output_canvas');
-      const canvasCtx = canvasElement.getContext('2d');
+  <script>
+    const videoElement = document.getElementById('inputVideo');
+    const canvasElement = document.getElementById('outputCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
 
-      function getAngle(a, b, c) {
-        const ab = { x: a.x - b.x, y: a.y - b.y };
-        const cb = { x: c.x - b.x, y: c.y - b.y };
-        const dot = ab.x * cb.x + ab.y * cb.y;
-        const abLen = Math.hypot(ab.x, ab.y);
-        const cbLen = Math.hypot(cb.x, cb.y);
-        return Math.acos(dot / (abLen * cbLen)) * (180 / Math.PI);
+    const pose = new Pose({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      smoothSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    pose.onResults(results => {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      if (results.poseLandmarks) {
+        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                       {color: '#00FF00', lineWidth: 3});
+        drawLandmarks(canvasCtx, results.poseLandmarks,
+                      {color: '#FF0000', lineWidth: 2});
       }
+      canvasCtx.restore();
+    });
 
-      function onResults(results) {
-        canvasCtx.save();
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-        if (results.poseLandmarks) {
-          drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00' });
-          drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', radius: 4 });
-
-          const rs = results.poseLandmarks[12]; // 右肩
-          const re = results.poseLandmarks[14]; // 右肘
-          const rh = results.poseLandmarks[24]; // 右腰
-
-          if (rs && re && rh) {
-            const angle = getAngle(rs, re, rh);
-            canvasCtx.font = "20px sans-serif";
-            canvasCtx.fillStyle = "black";
-            canvasCtx.fillText(`右脇角度: ${Math.round(angle)}°`, 10, 30);
-          }
-        }
-
-        canvasCtx.restore();
-      }
-
-      const pose = new Pose.Pose({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-      });
-      pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-      pose.onResults(onResults);
-
-      const camera = new Camera(videoElement, {
-        onFrame: async () => {
-          await pose.send({ image: videoElement });
-        },
-        width: 640,
-        height: 480
-      });
-      camera.start();
-    </script>
-  </body>
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await pose.send({image: videoElement});
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
 </html>
