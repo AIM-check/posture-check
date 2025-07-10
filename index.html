@@ -1,24 +1,38 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head><meta charset="UTF-8"><title>右脇角度計測（1カメラ）</title></head>
+<head>
+  <meta charset="UTF-8" />
+  <title>右脇角度チェック</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
 <body>
-  <video id="video" autoplay muted playsinline width="640" height="480"></video>
-  <canvas id="canvas" width="640" height="480"></canvas>
-  <div id="angleDisplay" style="font-size: 24px; margin-top: 10px;"></div>
+  <video id="input_video" autoplay muted playsinline style="width: 640px; height: 480px;"></video>
+  <canvas id="output_canvas" width="640" height="480" style="position:absolute; left:0; top:0;"></canvas>
+  <p id="angle_display"></p>
 
-  <script type="module">
-    import { Pose } from 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js';
-    import { Camera } from 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
-    import { drawConnectors, drawLandmarks } from 'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js';
-
-    const videoElement = document.getElementById('video');
-    const canvasElement = document.getElementById('canvas');
+  <script>
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
-    const angleDisplay = document.getElementById('angleDisplay');
+    const angleDisplay = document.getElementById('angle_display');
 
-    // Pose モデルの設定
-    const pose = new Pose({
-      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+    function toDegrees(radians) {
+      return radians * (180 / Math.PI);
+    }
+
+    function calculateAngle(a, b, c) {
+      const ab = { x: b.x - a.x, y: b.y - a.y };
+      const cb = { x: b.x - c.x, y: b.y - c.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const magAB = Math.hypot(ab.x, ab.y);
+      const magCB = Math.hypot(cb.x, cb.y);
+      const angle = Math.acos(dot / (magAB * magCB));
+      return toDegrees(angle);
+    }
+
+    const pose = new Pose.Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
     });
 
     pose.setOptions({
@@ -29,43 +43,33 @@
       minTrackingConfidence: 0.5
     });
 
-    pose.onResults(results => {
-      canvasCtx.save();
+    pose.onResults((results) => {
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
       canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-      if (results.poseLandmarks) {
-        drawConnectors(canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-        drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 1 });
 
-        // ----- 右脇角度の計算 -----
+      if (results.poseLandmarks) {
         const rShoulder = results.poseLandmarks[12];
         const rElbow = results.poseLandmarks[14];
         const rHip = results.poseLandmarks[24];
 
-        // 胴体ベクトル（肩→腰）
-        const vecA = {
-          x: rHip.x - rShoulder.x,
-          y: rHip.y - rShoulder.y
-        };
-        // 上腕ベクトル（肩→肘）
-        const vecB = {
-          x: rElbow.x - rShoulder.x,
-          y: rElbow.y - rShoulder.y
-        };
-        const dot = vecA.x * vecB.x + vecA.y * vecB.y;
-        const magA = Math.sqrt(vecA.x ** 2 + vecA.y ** 2);
-        const magB = Math.sqrt(vecB.x ** 2 + vecB.y ** 2);
-        const cosTheta = dot / (magA * magB);
-        const angle = Math.acos(Math.max(-1, Math.min(1, cosTheta)));
-        const radianToDegree = 180 / Math.PI;
-        const armpitAngle = Math.round(angle * radianToDegree);
+        const angle = calculateAngle(rShoulder, rElbow, rHip);
+        angleDisplay.textContent = `右脇の角度: ${angle.toFixed(1)}°`;
 
-        angleDisplay.textContent = `右脇の角度: ${armpitAngle}°`;
+        // 線を描画
+        const drawLine = (a, b, color) => {
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(a.x * canvasElement.width, a.y * canvasElement.height);
+          canvasCtx.lineTo(b.x * canvasElement.width, b.y * canvasElement.height);
+          canvasCtx.strokeStyle = color;
+          canvasCtx.lineWidth = 2;
+          canvasCtx.stroke();
+        };
+
+        drawLine(rShoulder, rElbow, "red");
+        drawLine(rElbow, rHip, "blue");
       }
-      canvasCtx.restore();
     });
 
-    // カメラのセットアップ
     const camera = new Camera(videoElement, {
       onFrame: async () => {
         await pose.send({ image: videoElement });
