@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
   <head>
-    <meta charset="utf-8" />
-    <title>右脇角度チェックツール</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <meta charset="UTF-8" />
+    <title>右脇角度チェック</title>
+    <!-- 必要な Mediapipe ライブラリを script タグで読み込む -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
       canvas { border: 1px solid #ccc; }
     </style>
@@ -15,9 +16,18 @@
     <canvas class="output_canvas" width="640" height="480"></canvas>
 
     <script>
-      const videoElement = document.getElementsByClassName('input_video')[0];
-      const canvasElement = document.getElementsByClassName('output_canvas')[0];
+      const videoElement = document.querySelector('.input_video');
+      const canvasElement = document.querySelector('.output_canvas');
       const canvasCtx = canvasElement.getContext('2d');
+
+      function getAngle(a, b, c) {
+        const ab = { x: a.x - b.x, y: a.y - b.y };
+        const cb = { x: c.x - b.x, y: c.y - b.y };
+        const dot = ab.x * cb.x + ab.y * cb.y;
+        const abLen = Math.hypot(ab.x, ab.y);
+        const cbLen = Math.hypot(cb.x, cb.y);
+        return Math.acos(dot / (abLen * cbLen)) * (180 / Math.PI);
+      }
 
       function onResults(results) {
         canvasCtx.save();
@@ -28,14 +38,14 @@
           drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00' });
           drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', radius: 4 });
 
-          const rShoulder = results.poseLandmarks[12];
-          const rElbow = results.poseLandmarks[14];
-          const rHip = results.poseLandmarks[24];
+          const rs = results.poseLandmarks[12]; // 右肩
+          const re = results.poseLandmarks[14]; // 右肘
+          const rh = results.poseLandmarks[24]; // 右腰
 
-          if (rShoulder && rElbow && rHip) {
-            const angle = getAngle(rShoulder, rElbow, rHip);
-            canvasCtx.fillStyle = 'black';
-            canvasCtx.font = '20px sans-serif';
+          if (rs && re && rh) {
+            const angle = getAngle(rs, re, rh);
+            canvasCtx.font = "20px sans-serif";
+            canvasCtx.fillStyle = "black";
             canvasCtx.fillText(`右脇角度: ${Math.round(angle)}°`, 10, 30);
           }
         }
@@ -43,17 +53,7 @@
         canvasCtx.restore();
       }
 
-      function getAngle(a, b, c) {
-        const ab = { x: a.x - b.x, y: a.y - b.y };
-        const cb = { x: c.x - b.x, y: c.y - b.y };
-        const dot = ab.x * cb.x + ab.y * cb.y;
-        const abLen = Math.hypot(ab.x, ab.y);
-        const cbLen = Math.hypot(cb.x, cb.y);
-        const angle = Math.acos(dot / (abLen * cbLen));
-        return (angle * 180) / Math.PI;
-      }
-
-      const pose = new Pose({
+      const pose = new Pose.Pose({
         locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
       });
       pose.setOptions({
