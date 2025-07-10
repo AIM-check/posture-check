@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>2カメラ + MediaPipe Pose（Tasks API版）</title>
+  <title>2カメラ + MediaPipe Pose（Tasks API）</title>
   <style>
     video, canvas {
       width: 45%;
@@ -16,7 +16,7 @@
   </style>
 </head>
 <body>
-  <h2>2カメラ + MediaPipe Pose（Tasks API版）</h2>
+  <h2>2カメラ + MediaPipe Pose（Tasks API）</h2>
   <div id="wrapper">
     <video id="video1" autoplay muted playsinline></video>
     <canvas id="canvas1"></canvas>
@@ -35,7 +35,11 @@
         video: { deviceId: { exact: deviceId }, width: 640, height: 480 }
       });
       videoEl.srcObject = stream;
-      return new Promise(resolve => videoEl.onloadedmetadata = resolve);
+      return new Promise(resolve => {
+        videoEl.onloadedmetadata = () => {
+          resolve();
+        };
+      });
     }
 
     async function main() {
@@ -49,6 +53,7 @@
       const video1 = document.getElementById("video1");
       const canvas1 = document.getElementById("canvas1");
       const ctx1 = canvas1.getContext("2d");
+
       const video2 = document.getElementById("video2");
       const canvas2 = document.getElementById("canvas2");
       const ctx2 = canvas2.getContext("2d");
@@ -76,29 +81,29 @@
         numPoses: 1
       });
 
-      function drawLandmarks(ctx, landmarks) {
+      function drawLandmarks(ctx, landmarks, color = "red") {
         for (const lm of landmarks) {
           ctx.beginPath();
           ctx.arc(lm.x * ctx.canvas.width, lm.y * ctx.canvas.height, 5, 0, 2 * Math.PI);
-          ctx.fillStyle = "red";
+          ctx.fillStyle = color;
           ctx.fill();
         }
       }
 
-      async function renderLoop(video, canvas, ctx) {
+      async function renderLoop(video, canvas, ctx, color) {
         if (video.readyState === 4) {
           const result = await poseLandmarker.detectForVideo(video, performance.now());
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           if (result.landmarks.length > 0) {
-            drawLandmarks(ctx, result.landmarks[0]);
+            drawLandmarks(ctx, result.landmarks[0], color);
           }
         }
-        requestAnimationFrame(() => renderLoop(video, canvas, ctx));
+        requestAnimationFrame(() => renderLoop(video, canvas, ctx, color));
       }
 
-      renderLoop(video1, canvas1, ctx1);
-      renderLoop(video2, canvas2, ctx2);
+      renderLoop(video1, canvas1, ctx1, "red");
+      renderLoop(video2, canvas2, ctx2, "blue");
     }
 
     main();
