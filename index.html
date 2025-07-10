@@ -1,92 +1,80 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>2カメラ Pose 検出（旧API）</title>
+  <meta charset="UTF-8" />
+  <title>右脇角度チェック</title>
   <style>
-    video, canvas {
-      width: 45%;
-      border: 1px solid #ccc;
-    }
+    canvas { position: absolute; left: 0; top: 0; }
+    video { display: none; }
   </style>
 </head>
 <body>
-  <video id="video1" autoplay muted playsinline></video>
-  <canvas id="canvas1"></canvas>
-  <video id="video2" autoplay muted playsinline></video>
-  <canvas id="canvas2"></canvas>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="output"></canvas>
 
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script type="module">
+    import { Pose } from "https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js";
+    import { Camera } from "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
 
-  <script>
-    const video1 = document.getElementById('video1');
-    const video2 = document.getElementById('video2');
-    const canvas1 = document.getElementById('canvas1');
-    const canvas2 = document.getElementById('canvas2');
-    const ctx1 = canvas1.getContext('2d');
-    const ctx2 = canvas2.getContext('2d');
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("output");
+    const ctx = canvas.getContext("2d");
 
-    // Pose 初期化
-    const pose1 = new Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
-    const pose2 = new Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+    // Mediapipe Pose セットアップ
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+    });
 
-    pose1.setOptions({modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false});
-    pose2.setOptions({modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false});
+    pose.setOptions({
+      modelComplexity: 2,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
 
-    function drawLandmarks(results, canvas, ctx, color) {
+    pose.onResults((results) => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      if (results.poseLandmarks) {
-        for (const landmark of results.poseLandmarks) {
-          ctx.beginPath();
-          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
-          ctx.fillStyle = color;
-          ctx.fill();
-        }
-      }
-    }
 
-    pose1.onResults(results => drawLandmarks(results, canvas1, ctx1, 'red'));
-    pose2.onResults(results => drawLandmarks(results, canvas2, ctx2, 'blue'));
+      const lm = results.poseLandmarks;
+      if (!lm) return;
 
-    // カメラ設定
-    async function setupDualCamera() {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(device => device.kind === 'videoinput');
-      if (cameras.length < 2) {
-        alert('カメラが2台必要です');
-        return;
+      // ランドマーク点の可視化
+      for (const pt of lm) {
+        ctx.beginPath();
+        ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = "red";
+        ctx.fill();
       }
 
-      const cam1 = new Camera(video1, {
-        deviceId: cameras[0].deviceId,
-        onFrame: async () => {
-          await pose1.send({image: video1});
-        },
-        width: 640,
-        height: 480
-      });
+      // 右肩・右肘・右腰の3点で脇の角度を計算
+      const R_SHOULDER = lm[12];
+      const R_ELBOW = lm[14];
+      const R_HIP = lm[24];
 
-      const cam2 = new Camera(video2, {
-        deviceId: cameras[1].deviceId,
-        onFrame: async () => {
-          await pose2.send({image: video2});
-        },
-        width: 640,
-        height: 480
-      });
+      const dx1 = R_SHOULDER.x - R_ELBOW.x;
+      const dy1 = R_SHOULDER.y - R_ELBOW.y;
+      const dx2 = R_HIP.x - R_ELBOW.x;
+      const dy2 = R_HIP.y - R_ELBOW.y;
 
-      canvas1.width = 640;
-      canvas1.height = 480;
-      canvas2.width = 640;
-      canvas2.height = 480;
+      const dot = dx1 * dx2 + dy1 * dy2;
+      const len1 = Math.sqrt(dx1 ** 2 + dy1 ** 2);
+      const len2 = Math.sqrt(dx2 ** 2 + dy2 ** 2);
+      const angle = Math.acos(dot / (len1 * len2)) * (180 / Math.PI);
 
-      cam1.start();
-      cam2.start();
-    }
+      ctx.fillStyle = "yellow";
+      ctx.font = "24px sans-serif";
+      ctx.fillText(`右脇角度: ${angle.toFixed(1)}°`, 10, 30);
+    });
 
-    setupDualCamera();
+    // カメラ起動
+    const camera = new Camera(video, {
+      onFrame: async () => await pose.send({ image: video }),
+      width: 640,
+      height: 480
+    });
+    camera.start();
   </script>
 </body>
 </html>
