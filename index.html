@@ -1,109 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>2カメラ + MediaPipe Pose</title>
+  <title>MediaPipe Pose Example</title>
   <style>
     video, canvas {
-      width: 45%;
-      margin: 10px;
-      border: 1px solid #ccc;
+      position: absolute;
+      top: 0; left: 0;
+      transform: scaleX(-1); /* ミラー表示 */
     }
   </style>
-  <!-- MediaPipe ライブラリの読み込み -->
+</head>
+<body>
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <!-- MediaPipeライブラリの読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-</head>
-<body>
-  <h2>🎥 2カメラ + MediaPipe Pose 表示</h2>
-  <div>
-    <video id="video1" autoplay muted playsinline></video>
-    <canvas id="canvas1"></canvas>
-    <video id="video2" autoplay muted playsinline></video>
-    <canvas id="canvas2"></canvas>
-  </div>
 
   <script>
-    async function getCameras() {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(device => device.kind === 'videoinput');
-    }
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
 
-    async function startDualCamera() {
-      const cameras = await getCameras();
-      if (cameras.length < 2) {
-        alert("⚠️ 2台のカメラが検出されませんでした。");
-        return;
-      }
+    const pose = new Pose({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+    });
 
-      const video1 = document.getElementById("video1");
-      const video2 = document.getElementById("video2");
-      const canvas1 = document.getElementById("canvas1");
-      const canvas2 = document.getElementById("canvas2");
-      const ctx1 = canvas1.getContext('2d');
-      const ctx2 = canvas2.getContext('2d');
+    pose.setOptions({
+      modelComplexity: 2,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
 
-      const stream1 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[0].deviceId }, width: 640, height: 480 } });
-      const stream2 = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cameras[1].deviceId }, width: 640, height: 480 } });
-      video1.srcObject = stream1;
-      video2.srcObject = stream2;
+    pose.onResults((results) => {
+      if (!results.poseLandmarks) return;
 
-      video1.onloadedmetadata = () => {
-        canvas1.width = video1.videoWidth;
-        canvas1.height = video1.videoHeight;
-      };
-      video2.onloadedmetadata = () => {
-        canvas2.width = video2.videoWidth;
-        canvas2.height = video2.videoHeight;
-      };
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-      const pose1 = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
+        color: '#00FF00',
+        lineWidth: 2,
       });
-      const pose2 = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      drawLandmarks(ctx, results.poseLandmarks, {
+        color: '#FF0000',
+        radius: 3,
       });
+    });
 
-      pose1.setOptions({ modelComplexity: 2, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-      pose2.setOptions({ modelComplexity: 2, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-
-      pose1.onResults(results => {
-        if (!results.poseLandmarks) return;
-        ctx1.save();
-        ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
-        ctx1.drawImage(results.image, 0, 0, canvas1.width, canvas1.height);
-        drawConnectors(ctx1, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-        drawLandmarks(ctx1, results.poseLandmarks, {color: '#FF0000', radius: 2});
-        ctx1.restore();
-      });
-
-      pose2.onResults(results => {
-        if (!results.poseLandmarks) return;
-        ctx2.save();
-        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
-        ctx2.drawImage(results.image, 0, 0, canvas2.width, canvas2.height);
-        drawConnectors(ctx2, results.poseLandmarks, POSE_CONNECTIONS, {color: '#0000FF', lineWidth: 2});
-        drawLandmarks(ctx2, results.poseLandmarks, {color: '#FFFF00', radius: 2});
-        ctx2.restore();
-      });
-
-      const camera1 = new Camera(video1, {
-        onFrame: async () => {
-          await pose1.send({image: video1});
-        }, width: 640, height: 480
-      });
-
-      const camera2 = new Camera(video2, {
-        onFrame: async () => {
-          await pose2.send({image: video2});
-        }, width: 640, height: 480
-      });
-
-      camera1.start();
-      camera2.start();
-    }
-
-    startDualCamera();
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await pose.send({ image: video });
+      },
+      width: 640,
+      height: 480,
+    });
+    camera.start();
   </script>
 </body>
 </html>
