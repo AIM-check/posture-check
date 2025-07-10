@@ -1,94 +1,86 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>FPS姿勢チェック</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
-    #wrapper { position: relative; width: 640px; margin: 20px auto; }
-    video, canvas { width: 640px; height: 480px; border-radius: 8px; }
-    #scoreBox { margin-top: 20px; padding: 10px; background: white; display: inline-block; font-size: 1.2em; border-radius: 8px; }
-  </style>
-</head>
+<head><meta charset="UTF-8"><title>右脇角度チェック（1カメラ）</title></head>
 <body>
-  <h1>FPS 姿勢チェックツール</h1>
-  <p>カメラで右脇の角度を測定します</p>
+  <video id="video" autoplay muted playsinline width="640" height="480"></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="angleDisplay">右脇の角度: --- 度</div>
 
-  <div id="wrapper">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-  </div>
+  <script type="module">
+    import * as mpPose from 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js';
+    import * as mpDrawing from 'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.5/drawing_utils.js';
 
-  <div id="scoreBox">スコア測定中...</div>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const angleDisplay = document.getElementById('angleDisplay');
 
-  <!-- ✅ MediaPipe公式バンドルCDN（すべて内包） -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+    // カメラ起動
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream });
 
-  <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const scoreBox = document.getElementById("scoreBox");
-
-    const pose = new Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
+    // Poseインスタンス作成
+    const pose = new mpPose.Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
     });
 
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
       enableSegmentation: false,
+      smoothSegmentation: false,
       minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
+      minTrackingConfidence: 0.5
     });
 
-    pose.onResults((results) => {
+    pose.onResults(results => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-      const lm = results.poseLandmarks;
-      if (!lm) return;
+      if (!results.poseLandmarks) return;
+      mpDrawing.drawConnectors(ctx, results.poseLandmarks, mpPose.POSE_CONNECTIONS, { color: '#00FF00' });
+      mpDrawing.drawLandmarks(ctx, results.poseLandmarks, { color: '#FF0000', radius: 4 });
 
-      const angle = calculateAngle(lm[12], lm[14], lm[24]); // 右肩・右肘・右腰
-      let scoreText = `右脇の角度: ${angle.toFixed(1)}度`;
+      // 右肩・右肘・右腰のランドマーク取得
+      const R_SHOULDER = results.poseLandmarks[12];
+      const R_ELBOW = results.poseLandmarks[14];
+      const R_HIP = results.poseLandmarks[24];
 
-      if (angle < 60 || angle > 100) {
-        scoreText += "（✗ 開きすぎ／閉じすぎ）";
+      if (R_SHOULDER.visibility > 0.5 && R_ELBOW.visibility > 0.5 && R_HIP.visibility > 0.5) {
+        // ベクトル計算
+        const vec1 = [R_SHOULDER.x - R_ELBOW.x, R_SHOULDER.y - R_ELBOW.y];
+        const vec2 = [R_HIP.x - R_ELBOW.x, R_HIP.y - R_ELBOW.y];
+
+        const dot = vec1[0]*vec2[0] + vec1[1]*vec2[1];
+        const len1 = Math.hypot(vec1[0], vec1[1]);
+        const len2 = Math.hypot(vec2[0], vec2[1]);
+        const angleRad = Math.acos(dot / (len1 * len2));
+        const angleDeg = Math.round((angleRad * 180) / Math.PI);
+
+        angleDisplay.textContent = `右脇の角度: ${angleDeg} 度`;
       } else {
-        scoreText += "（◎ 理想的）";
+        angleDisplay.textContent = '右脇の角度: --- 度';
       }
-
-      scoreBox.innerText = scoreText;
     });
 
-    function calculateAngle(a, b, c) {
-      const ab = { x: b.x - a.x, y: b.y - a.y };
-      const cb = { x: b.x - c.x, y: b.y - c.y };
-      const dot = ab.x * cb.x + ab.y * cb.y;
-      const abLen = Math.hypot(ab.x, ab.y);
-      const cbLen = Math.hypot(cb.x, cb.y);
-      const angle = Math.acos(dot / (abLen * cbLen));
-      return angle * (180 / Math.PI);
-    }
-
-    async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
-      await new Promise((resolve) => (video.onloadedmetadata = resolve));
-      video.play();
-
+    async function start() {
       const camera = new Camera(video, {
-        onFrame: async () => await pose.send({ image: video }),
+        onFrame: async () => { await pose.send({ image: video }); },
         width: 640,
-        height: 480,
+        height: 480
       });
-
       camera.start();
     }
 
-    setupCamera();
+    // Cameraが提供されていないため簡易的な代替を使用
+    video.addEventListener('loadeddata', async () => {
+      const loop = async () => {
+        await pose.send({ image: video });
+        requestAnimationFrame(loop);
+      };
+      loop();
+    });
+
   </script>
 </body>
 </html>
