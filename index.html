@@ -1,67 +1,44 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>MediaPipe Pose Example</title>
-  <style>
-    video, canvas {
-      position: absolute;
-      top: 0; left: 0;
-      transform: scaleX(-1); /* ミラー表示 */
-    }
-  </style>
-</head>
-<body>
-  <video id="video" autoplay muted playsinline></video>
-  <canvas id="canvas"></canvas>
+<script type="module">
+  import { FilesetResolver, PoseLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3';
 
-  <!-- MediaPipeライブラリの読み込み -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-  <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+  const filesetResolver = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
+  );
 
-    const pose = new Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
-    });
+  const poseLandmarker = await PoseLandmarker.createFromOptions(filesetResolver, {
+    baseOptions: {
+      modelAssetPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/pose_landmarker_full.task'
+    },
+    runningMode: 'VIDEO',
+    numPoses: 1
+  });
 
-    pose.setOptions({
-      modelComplexity: 2,
-      smoothLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+  // カメラ初期化処理
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
 
-    pose.onResults((results) => {
-      if (!results.poseLandmarks) return;
+  video.onloadeddata = () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    requestAnimationFrame(async function detect() {
+      const results = await poseLandmarker.detectForVideo(video, performance.now());
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0);
 
-      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: '#00FF00',
-        lineWidth: 2,
-      });
-      drawLandmarks(ctx, results.poseLandmarks, {
-        color: '#FF0000',
-        radius: 3,
-      });
+      if (results.landmarks.length > 0) {
+        for (const lm of results.landmarks[0]) {
+          ctx.beginPath();
+          ctx.arc(lm.x * canvas.width, lm.y * canvas.height, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = 'red';
+          ctx.fill();
+        }
+      }
+      requestAnimationFrame(detect);
     });
-
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        await pose.send({ image: video });
-      },
-      width: 640,
-      height: 480,
-    });
-    camera.start();
-  </script>
-</body>
-</html>
+  };
+</script>
