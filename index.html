@@ -6,7 +6,7 @@
     video, canvas {
       width: 45%;
       margin: 10px;
-      border: 2px solid #333;
+      border: 1px solid #ccc;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 </head>
 <body>
-  <h2>🎥 2カメラ + MediaPipe Pose 姿勢検出</h2>
+  <h2>🎥 2カメラ + MediaPipe Pose 可視化</h2>
   <div>
     <video id="video1" autoplay muted playsinline></video>
     <canvas id="canvas1"></canvas>
@@ -55,4 +55,49 @@
         canvas2.height = video2.videoHeight;
       };
 
-      const pose1 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose
+      const pose1 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+      const pose2 = new Pose.Pose({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`});
+
+      pose1.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      pose2.setOptions({ modelComplexity: 2, smoothLandmarks: true, enableSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+      pose1.onResults(results => {
+        if (!results.poseLandmarks) return;
+        ctx1.save();
+        ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
+        ctx1.drawImage(results.image, 0, 0, canvas1.width, canvas1.height);
+        drawConnectors(ctx1, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+        drawLandmarks(ctx1, results.poseLandmarks, {color: '#FF0000', radius: 2});
+        ctx1.restore();
+      });
+
+      pose2.onResults(results => {
+        if (!results.poseLandmarks) return;
+        ctx2.save();
+        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+        ctx2.drawImage(results.image, 0, 0, canvas2.width, canvas2.height);
+        drawConnectors(ctx2, results.poseLandmarks, Pose.POSE_CONNECTIONS, {color: '#0000FF', lineWidth: 2});
+        drawLandmarks(ctx2, results.poseLandmarks, {color: '#FFFF00', radius: 2});
+        ctx2.restore();
+      });
+
+      const camera1 = new Camera(video1, {
+        onFrame: async () => {
+          await pose1.send({image: video1});
+        }, width: 640, height: 480
+      });
+
+      const camera2 = new Camera(video2, {
+        onFrame: async () => {
+          await pose2.send({image: video2});
+        }, width: 640, height: 480
+      });
+
+      camera1.start();
+      camera2.start();
+    }
+
+    startDualCamera();
+  </script>
+</body>
+</html>
