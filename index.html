@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head><meta charset="UTF-8"><title>2カメラ + Lite版 Model</title></head>
+<head>
+  <meta charset="UTF-8">
+  <title>2カメラ + Lite版 Model（修正版）</title>
+</head>
 <body>
   <video id="video1" autoplay muted playsinline style="width:45%"></video>
   <canvas id="canvas1" style="width:45%"></canvas>
@@ -8,7 +11,7 @@
   <canvas id="canvas2" style="width:45%"></canvas>
 
   <script type="module">
-    import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision";
+    import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
 
     async function setupCamera(videoEl, deviceId) {
       const s = await navigator.mediaDevices.getUserMedia({
@@ -32,17 +35,12 @@
       [c2.width, c2.height] = [v2.videoWidth, v2.videoHeight];
 
       const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
       );
-      const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/1/pose_landmarker_lite.task"
-        },
-        runningMode: "VIDEO",
-        modelComplexity: 2,
-        numPoses: 1
-      });
+      const poseLandmarker = await PoseLandmarker.createFromModelPath(
+        vision,
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm/pose_landmarker_lite.task"
+      );
 
       const render = async (v, c, ctx, color) => {
         if (v.readyState === 4) {
